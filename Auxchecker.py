@@ -60,8 +60,8 @@ def prepare_text_for_json(text: str) -> str:
     # remove tabulation
     text = text.replace("\t", "")
     # remove extra commas at },} and like this
-    while re.findall(r"([\]\}]\s*),(\s*[\}\]])", text):
-        text = re.sub(r"([\]\}]\s*),(\s*[\}\]])", r'\1\2', text)
+    while re.findall(r",(\s*[\}\]])", text):
+        text = re.sub(r",(\s*[\}\]])", r'\1', text)
     return text
 
 
@@ -92,9 +92,9 @@ def check_sequencer(data, effect) -> str:
     :return: error text or empty string
     """
     if not data[effect]:
-        return "Error: '%s' effect has no sequencers, this effect is skipped" % effect
+        return "Error: '%s' effect has no sequencers" % effect
     if len(data[effect]) >= leds_number:
-        return "Error:'%s' effect: number of sequencers must be no more then %i, , this effect is skipped" \
+        return "Error:'%s' effect: number of sequencers must be no more then %i" \
                % (effect, leds_number)
     return ""
 
@@ -110,19 +110,19 @@ def check_config(sequencer: dict, leds_used: list) -> (str, int, list):
     error = ""
     config = get_real_key(sequencer, "config")
     if not config:
-        return "no Config string with leds list, , this sequencer is skipped", 0, leds_used
+        return "no Config string with leds list", 0, leds_used
     if not isinstance(sequencer[config], list):
-        return "config parameter must be list of LEDS (for example [Led1, Led2]), this sequencer is skipped", 0
+        return "config parameter must be list of LEDS (for example [Led1, Led2])", 0
     leds_count = len(sequencer[config])
     if leds_count == 0:
-        return "0 LEDs selected, this sequencer is skipped ", 0, leds_used
+        return "0 LEDs selected", 0, leds_used
     incorrect_leds = [led for led in sequencer[config] if
                       led.lower() not in ['led1', 'led2', 'led3', 'led4', 'led5', 'led6', 'led7', 'led8']]
     if incorrect_leds:
-        error += "incorrect led value, this sequencer is skipped\n"
+        error += "incorrect led value\n"
     for led in sequencer[config]:
         if led in leds_used:
-            error += "%s: this led is already used in other sequencer for this effect, this effect is skipped\n" % led
+            error += "%s: this led is already used in other sequencer for this effect\n" % led
         else:
             leds_used.append(led)
     return error.strip(), leds_count, leds_used
@@ -136,11 +136,11 @@ def check_sequence(sequencer: dict) -> str:
     """
     sequence = get_real_key(sequencer, "sequence")
     if not sequence:
-        return "no sequence steps, this sequencer is skipped"
+        return "no sequence steps"
     if not isinstance(sequencer[sequence], list):
-        return "no steps, this sequencer is skipped"
+        return "no steps"
     if len(sequencer[sequence]) == 0:
-        return "no steps, this sequencer is skipped"
+        return "no steps"
     return ""
 
 
@@ -159,7 +159,7 @@ def get_namelist(sequencer: dict) -> list:
     return namelist
 
 
-def check_step_keys(step: dict, ) -> str:
+def check_step_keys(step: dict) -> str:
     """
     check if step keys are corrent (no incorrect keys, and each step is step or wait or repeat)
     :param step: dict with step data
@@ -167,13 +167,13 @@ def check_step_keys(step: dict, ) -> str:
     """
     repeat = get_real_key(step, "repeat")
     brightness = get_real_key(step, "brightness")
-    wait = get_real_key(step, "wait")
-    if not repeat and not brightness and not wait:
-        return "each step must contain brightness or repeat or wait, this sequencer is skipped"
+    wait_key = get_real_key(step, "wait")
+    if not repeat and not brightness and not wait_key:
+        return "each step must contain brightness or repeat or wait"
 
     for key in step.keys():
         if key.lower() not in ['repeat', 'wait', 'brightness', 'smooth', 'name']:
-            return "invalid keys for this step , this sequencer is skipped"
+            return "invalid keys for this step"
     return ""
 
 
@@ -188,15 +188,15 @@ def check_brightness(step: dict, leds_count: int) -> str:
     if brightness:
         brightness = step[brightness]
         if len(brightness) != leds_count:
-            return "incorrect leds number, this sequencer is skipped"
+            return "incorrect leds number"
         for led in brightness:
             if isinstance(led, int):
                 if led < 0 or led > 100:
-                    return "%i led brightness is not correct (expect value from 0 to 100 inclusively, this sequencer is skipped"  \
+                    return "%i led brightness is not correct (expect value from 0 to 100 inclusively)" \
                            % brightness.index(led) + 1
             else:
                 if led.lower() not in leds_copy_list:
-                    return "%i led is incorrect: use 0...100 or one of CopyRed, CopyBlue, CopyGreen values, this sequencer is skipped"\
+                    return "%i led is incorrect: use 0...100 or one of CopyRed, CopyBlue, CopyGreen values" \
                            % brightness.index(led) + 1
     return ""
 
@@ -209,7 +209,7 @@ def check_wait(step: dict) -> str:
     wait = get_real_key(step, "wait")
     if wait:
         if not isinstance(step[wait], int) or step[wait] < 0:
-            return "wait value must be positive number, this sequencer is skipped"
+            return "wait value must be positive number"
     return ""
 
 
@@ -226,20 +226,19 @@ def check_repeat(step: dict, namelist: [str]) -> str:
         repeat = step[repeat]
         start_step = get_real_key(repeat, "startingfrom")
         if not start_step or repeat[start_step] not in namelist:
-            error = "start parameter ('StartingFrom') for repeat must be an existing step name," \
-                    " this sequencer is skipped\n"
+            error = "start parameter ('StartingFrom') for repeat must be an existing step name\n"
         count = get_real_key(repeat, "count")
         if not count:
-            error += "no count parameter for repeat, this sequencer is skipped]n"
+            error += "no count parameter for repeat\n"
         else:
             count = repeat[count]
             if isinstance(count, int):
                 if count <= 0:
-                    error += "repeat count must be positive, this sequencer is skipped"
+                    error += "repeat count must be positive"
             else:
                 if count != 'forever':
-                    error += "repeat count must be  number or 'forever', this sequencer is skipped"
-    return error
+                    error += "repeat count must be  number or 'forever'"
+    return error.strip()
 
 
 def check_smooth(step: dict) -> str:
@@ -253,17 +252,21 @@ def check_smooth(step: dict) -> str:
     if smooth:
         smooth = step[smooth]
         if not brightness:
-            return "smooth parameter is only for steps with brightness, this sequencer is skipped"
+            return "smooth parameter is only for steps with brightness"
         if not (isinstance(smooth, int)):
             return "smooth parameter must be number"
         else:
             if smooth < 0:
-                return "smooth parameter can't be negative, this sequencer is skipped"
+                return "smooth parameter can't be negative"
     return ""
 
 
 def main(filename: str):
-    f = open(filename)
+    try:
+        f = open(filename)
+    except FileNotFoundError:
+        print("File %s not found" % filename)
+        return
     text = f.read()
     data, error = get_json(text)
     error = error.replace(" enclosed in double quotes", "")
@@ -321,3 +324,5 @@ if __name__ == '__main__':
         main(sys.argv[1])
     else:
         print("No ini file")
+    print("File is checked, list of errors above. Press any key to exit")
+    wait = input()

@@ -1,4 +1,6 @@
 .*
 __*
 *.ini
+dists/
+nuitka/
 !/.gitignore

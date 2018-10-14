@@ -1,87 +1,11 @@
-import json
 import sys
-import re
+from IniToJson import get_json
+from CommonChecks import *
 
 leds_number = 8
 leds_copy_list = ['copyred', 'copyblue', 'copygreen']
-
-
-def get_real_key(data: dict, template: str) -> str:
-    """
-    gets real dictionary key
-    :param data: dictionary with data
-    :param template: template for a key to find
-    :return: real dictionary key
-    """
-    for key in data.keys():
-        if key.lower() == template:
-            return key
-    return ""
-
-
-def remove_comments(text: str) -> (str, int):
-    """
-    function removes commentns from ini file and returns new text and number of deleted lines
-    :param text: text from ini file
-    :return: text without comments, number of removed strings
-    """
-    missed = 0
-    while "/*" in text:
-        start = text.find("/*")
-        end = text.find('*/')
-        if end == -1:
-            print('Comment started with /* is not closed')
-        missed = text.count('\n', start, end)
-        new_text = text[:start] + text[end + 2:]
-        text = new_text
-    lines = text.split('\n')
-    text = ""
-    for line in lines:
-        if r'//' in line:
-            new_line = line[:line.index(r'//')]
-            text = text + new_line + '\n'
-        else:
-            text = text + line + '\n'
-    return text, missed
-
-
-def prepare_text_for_json(text: str) -> str:
-    """
-    remove extra commas, add { at the beginning anf } at the end of file, enclose keys in qoutes
-    :param text: ini file text
-    :return:  ini file text prepared for json converting
-    """
-    if r'"' in text:
-        print(r'Not allowed symbol: "')
-    text = '{' + text
-    text = text + '}'
-    # add qoutes
-    text = re.sub(r'([A-Za-z]\w+)', r'"\1"', text)
-    # remove tabulation
-    text = text.replace("\t", "")
-    # remove extra commas at },} and like this
-    while re.findall(r",(\s*[\}\]])", text):
-        text = re.sub(r",(\s*[\}\]])", r'\1', text)
-    return text
-
-
-def get_json(text: str) -> (dict, str):
-    """
-    funtions converts prepared text to json if possible
-    :param text: ini file text
-    :return: json (as dictionary) (or None), empty string or error text
-    """
-    text, missed = remove_comments(text)
-    text = prepare_text_for_json(text)
-    try:
-        data = json.loads(text)
-        return data, ""
-    except json.decoder.JSONDecodeError:
-        e = sys.exc_info()[1]
-        errors = e.args[0].split('line ')
-        string_number = int(errors[1].split()[0]) + missed
-        errors = errors[0] + 'line ' + str(string_number)
-        return None, errors
+step_keys = ['repeat', 'wait', 'brightness', 'smooth', 'name']
+bignumber = 36000000
 
 
 def check_sequencer(data, effect) -> str:
@@ -91,10 +15,10 @@ def check_sequencer(data, effect) -> str:
     :param effect: effect
     :return: error text or empty string
     """
-    if not data[effect]:
-        return "Error: '%s' effect has no sequencers" % effect
+    if not data[effect] or not isinstance(data[effect], list):
+        return "Error: '%s' effect has no sequencers;" % effect
     if len(data[effect]) >= leds_number:
-        return "Error:'%s' effect: number of sequencers must be no more then %i" \
+        return "Error:'%s' effect: number of sequencers must be no more then %i;" \
                % (effect, leds_number)
     return ""
 
@@ -110,19 +34,19 @@ def check_config(sequencer: dict, leds_used: list) -> (str, int, list):
     error = ""
     config = get_real_key(sequencer, "config")
     if not config:
-        return "no Config string with leds list", 0, leds_used
+        return "no Config string with leds list;", 0, leds_used
     if not isinstance(sequencer[config], list):
-        return "config parameter must be list of LEDS (for example [Led1, Led2])", 0
+        return "config parameter must be list of LEDS (for example [Led1, Led2]);", 0
     leds_count = len(sequencer[config])
     if leds_count == 0:
         return "0 LEDs selected", 0, leds_used
     incorrect_leds = [led for led in sequencer[config] if
                       led.lower() not in ['led1', 'led2', 'led3', 'led4', 'led5', 'led6', 'led7', 'led8']]
     if incorrect_leds:
-        error += "incorrect led value\n"
+        error += "incorrect led value;\n"
     for led in sequencer[config]:
         if led in leds_used:
-            error += "%s: this led is already used in other sequencer for this effect\n" % led
+            error += "%s: this led is already used in other sequencer for this effect;\n" % led
         else:
             leds_used.append(led)
     return error.strip(), leds_count, leds_used
@@ -135,28 +59,29 @@ def check_sequence(sequencer: dict) -> str:
     :return: error empty string
     """
     sequence = get_real_key(sequencer, "sequence")
-    if not sequence:
-        return "no sequence steps"
-    if not isinstance(sequencer[sequence], list):
+    if not sequence or not isinstance(sequencer[sequence], list):
         return "no steps"
     if len(sequencer[sequence]) == 0:
         return "no steps"
     return ""
 
 
-def get_namelist(sequencer: dict) -> list:
+def get_namelist(sequencer: dict) -> (list, str):
     """
     gets list of steps names for sequence
     :param sequencer: dict with sequence data
     :return: list of names
     """
     namelist = []
+    error = ""
     sequence = get_real_key(sequencer, "sequence")
     for step in sequencer[sequence]:
         name = get_real_key(step, "name")
         if name:
+            if step[name] in namelist:
+                error += "name %s is already used" % step[name]
             namelist.append(step[name])
-    return namelist
+    return namelist, error
 
 
 def check_step_keys(step: dict) -> str:
@@ -165,16 +90,14 @@ def check_step_keys(step: dict) -> str:
     :param step: dict with step data
     :return: error message or empty string
     """
+    error = ""
     repeat = get_real_key(step, "repeat")
     brightness = get_real_key(step, "brightness")
     wait_key = get_real_key(step, "wait")
     if not repeat and not brightness and not wait_key:
-        return "each step must contain brightness or repeat or wait"
-
-    for key in step.keys():
-        if key.lower() not in ['repeat', 'wait', 'brightness', 'smooth', 'name']:
-            return "invalid keys for this step"
-    return ""
+        error += "each step must contain brightness or repeat or wait;\n"
+    error += check_keys(step, step_keys)
+    return error.strip()
 
 
 def check_brightness(step: dict, leds_count: int) -> str:
@@ -187,6 +110,8 @@ def check_brightness(step: dict, leds_count: int) -> str:
     brightness = get_real_key(step, "brightness")
     if brightness:
         brightness = step[brightness]
+        if not isinstance(brightness, list):
+            return "Brightness must be a list of leds"
         if len(brightness) != leds_count:
             return "incorrect leds number"
         for led in brightness:
@@ -206,12 +131,7 @@ def check_wait(step: dict) -> str:
     check if wait parameters are correct
     :return: error or empty string
     """
-    wait = get_real_key(step, "wait")
-    if wait:
-        if not isinstance(step[wait], int) or step[wait] < 0:
-            return "wait value must be positive number"
-    return ""
-
+    return check_unnecessary_number(step, 'wait', 0, big_number)
 
 def check_repeat(step: dict, namelist: [str]) -> str:
     """
@@ -262,22 +182,25 @@ def check_smooth(step: dict) -> str:
 
 
 def main(filename: str):
+
     try:
         f = open(filename)
     except FileNotFoundError:
         print("File %s not found" % filename)
-        return
+        return -1
     text = f.read()
     data, error = get_json(text)
     error = error.replace(" enclosed in double quotes", "")
     if not data:
         print(error)
-        return
+        return -1
+
     for effect in data.keys():
         error = check_sequencer(data, effect)
         if error:
             print("Error: '%s' effect: " % effect + error)
             continue
+
         leds_used = []
         for sequencer in data[effect]:
             i_seq = data[effect].index(sequencer) + 1
@@ -289,7 +212,9 @@ def main(filename: str):
             if error:
                 print(("Error: '%s' effect, %i sequencer: " % (effect, i_seq) + error))
                 continue
-            namelist = get_namelist(sequencer)
+            namelist, error = get_namelist(sequencer)
+            if error:
+                print("Error: '%s' effect, %i sequencer: " % (effect, i_seq) + error)
             sequence = get_real_key(sequencer, "sequence")
 
             for step in sequencer[sequence]:
@@ -317,12 +242,19 @@ def main(filename: str):
                 error = check_smooth(step)
                 if error:
                     print("Error: '%s' effect, %i sequencer, %i step(%s): " % (effect, i_seq, i_step, name) + error)
+    return 0
 
 
 if __name__ == '__main__':
     if len(sys.argv) > 1:
-        main(sys.argv[1])
+        res = main(sys.argv[1])
+        if res != -1:
+            print("File is checked, Press any key to exit")
+        wait = input()
     else:
-        print("No ini file")
-    print("File is checked, list of errors above. Press any key to exit")
-    wait = input()
+        print("Enter filename")
+        filename = input()
+        res = main(filename)
+        if res != -1:
+            print("File is checked, press any key to exit")
+        wait = input()

@@ -87,7 +87,6 @@ def check_unnecessary_number(data: dict, param: str, min_value: int, max_value: 
     return error
 
 
-
 def check_number_max_warning(data: dict, param: str, min_value: int, max_value: int) -> (str, str):
     """
     checks if number parameter is correct, if number>max you get warning, for other problem - error
@@ -233,7 +232,7 @@ def check_color(data: dict) -> str:
 def check_color_from_list(data) -> str:
     """
     checks if color is correct (list of three numbers 0...255 or random string)
-    :param color: colors settings
+    :param data: colors settings
     :return:
     """
     colors = get_real_key(data, 'colors')
@@ -255,7 +254,6 @@ def check_color_from_list(data) -> str:
                     if not isinstance(part, int) or (part < 0) or part > 255:
                         error += "color must be positive number (max 255);\n"
     return error
-
 
 
 def check_keys(data: dict, key_list: list) -> str:

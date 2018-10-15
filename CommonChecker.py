@@ -26,14 +26,16 @@ a_high = 14000
 a_low = 100
 
 
-def check_blade(data: dict, key: str) -> str:
+def check_blade(data: dict, key: str) -> (str, str):
     """
     checks blade paramenters: bandbumber and pixperband
     :param data: dict with values
     :param key: key to check (blade or blade2)
-    :return: error message or empty string
+    :return: error and warning messages or empty strings
     """
-    blade, error = check_existance()
+    blade, error = check_existance(data, key)
+    if error:
+        return error, ""
     error = check_keys(blade, blade_keys)
     e, warning = check_number_max_warning(blade, 'bandnumber',  0, max_band)
     band = get_value(blade, 'bandnumber')
@@ -50,9 +52,9 @@ def check_blade(data: dict, key: str) -> str:
 
 def check_volume(data: dict) -> str:
     """
-
-    :param data:
-    :return:
+    checks if folume parameter is correct
+    :param data: dict with wolume settings
+    :return: error message or ""
     """
     volume = get_real_key(data, 'volume')
     if not volume:
@@ -68,9 +70,9 @@ def check_volume(data: dict) -> str:
 
 def check_deadtime(data: dict) -> str:
     """
-
-    :param data:
-    :return:
+    checks if deadtime parameter is correct
+    :param data: dict with settings
+    :return: error message or ""
     """
     deadtime, error = check_existance(data, 'deadtime')
     if error:
@@ -229,18 +231,34 @@ def check_motion(data: dict, errors_motion: dict) -> str:
     return error
 
 
-def main(filename: str):
+def get_led_number(data: dict) -> int:
+    """
+    return number of leds in blade
+    :param data: settings
+    :return: leds number in blade or 144 as default
+    """
+    blade = get_real_key(data, 'blade')
+    if blade and isinstance(data[blade], dict):
+        leds_number = get_real_key(data[blade], 'pixperband')
+        if leds_number:
+            return data[blade][leds_number]
+    return 144
+
+
+def common_main(filename: str):
     try:
         f = open(filename)
     except FileNotFoundError:
         print("File %s not found" % filename)
-        return -1
+        return 144
     text = f.read()
+    print("Checking Common.ini...")
     data, error = get_json(text)
     error = error.replace(" enclosed in double quotes", "")
     if not data:
         print(error)
-        return -1
+        print("Cannot check Commom.ini properly, used default leds number (144)")
+        return 144
     errors = {err: "" for err in common_keys_cap}
     errors_motion = {err: "" for err in motion_keys_cap}
     error = check_keys(data, common_keys)
@@ -261,17 +279,18 @@ def main(filename: str):
     for error in errors_motion.keys():
         if errors_motion[error]:
             print("Error: %s parameter:  %s " % (error, errors_motion[error].strip()))
+    return get_led_number(data)
 
 
 if __name__ == '__main__':
     if len(sys.argv) > 1:
-        main(sys.argv[1])
+        common_main(sys.argv[1])
         print("File is checked. Press any key to exit")
         wait = input()
     else:
         print("Enter filename")
         filename = input()
-        res = main(filename)
+        res = common_main(filename)
         if res != -1:
             print("File is checked, press any key to exit")
         wait = input()

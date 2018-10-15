@@ -5,7 +5,7 @@ from CommonChecks import *
 leds_number = 8
 leds_copy_list = ['copyred', 'copyblue', 'copygreen']
 step_keys = ['repeat', 'wait', 'brightness', 'smooth', 'name']
-bignumber = 36000000
+big_number = 36000000
 
 
 def check_sequencer(data, effect) -> str:
@@ -133,6 +133,7 @@ def check_wait(step: dict) -> str:
     """
     return check_unnecessary_number(step, 'wait', 0, big_number)
 
+
 def check_repeat(step: dict, namelist: [str]) -> str:
     """
     check correctness of repeat step (correct count value, step for repeat exists)
@@ -181,19 +182,25 @@ def check_smooth(step: dict) -> str:
     return ""
 
 
-def main(filename: str):
-
+def aux_main(filename: str) -> list:
+    """
+    checks aux file and return list of auxleds effects or none
+    :param filename: file name
+    :return: auxlist or none
+    """
     try:
         f = open(filename)
     except FileNotFoundError:
         print("File %s not found" % filename)
-        return -1
+        return []
+    print("Checking AuxLeds.ini...")
     text = f.read()
     data, error = get_json(text)
     error = error.replace(" enclosed in double quotes", "")
     if not data:
         print(error)
-        return -1
+        print("Cannot check AuxLeds.ini properly and get effect list")
+        return []
 
     for effect in data.keys():
         error = check_sequencer(data, effect)
@@ -242,19 +249,19 @@ def main(filename: str):
                 error = check_smooth(step)
                 if error:
                     print("Error: '%s' effect, %i sequencer, %i step(%s): " % (effect, i_seq, i_step, name) + error)
-    return 0
+    return data.keys()
 
 
 if __name__ == '__main__':
     if len(sys.argv) > 1:
-        res = main(sys.argv[1])
-        if res != -1:
+        res = aux_main(sys.argv[1])
+        if res:
             print("File is checked, Press any key to exit")
-        wait = input()
+        input()
     else:
         print("Enter filename")
         filename = input()
-        res = main(filename)
-        if res != -1:
+        res = aux_main(filename)
+        if res:
             print("File is checked, press any key to exit")
-        wait = input()
+        input()

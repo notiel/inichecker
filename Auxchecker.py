@@ -118,11 +118,11 @@ def check_brightness(step: dict, leds_count: int) -> str:
             if isinstance(led, int):
                 if led < 0 or led > 100:
                     return "%i led brightness is not correct (expect value from 0 to 100 inclusively)" \
-                           % brightness.index(led) + 1
+                           % (brightness.index(led) + 1)
             else:
                 if led.lower() not in leds_copy_list:
                     return "%i led is incorrect: use 0...100 or one of CopyRed, CopyBlue, CopyGreen values" \
-                           % brightness.index(led) + 1
+                           % (brightness.index(led) + 1)
     return ""
 
 

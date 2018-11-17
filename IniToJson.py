@@ -37,11 +37,13 @@ def prepare_text_for_json(text: str) -> str:
     """
     if r'"' in text:
         print(r'Not allowed symbol: "')
+    text = text.strip()
     if text[0] != '{':
         text = '{' + text
-    text = text + '}'
+        text = text + '}'
     # add qoutes
-    text = re.sub(r'([A-Za-z]\w*)', r'"\1"', text)
+    text = re.sub(r'([A-Za-z0-9]\w*)', r'"\1"', text)
+    text = re.sub(r'"([0-9]+)"', r'\1', text)
     # remove tabulation
     text = text.replace("\t", "")
     # remove extra commas at },} and like this

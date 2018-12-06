@@ -49,6 +49,8 @@ def prepare_text_for_json(text: str) -> str:
     # remove extra commas at },} and like this
     while re.findall(r",(\s*[\}\]])", text):
         text = re.sub(r",(\s*[\}\]])", r'\1', text)
+    # add commas to } { constructions
+    text = re.sub(r'}\s*{', r'}, {', text)
     return text
 
 

@@ -33,6 +33,19 @@ def get_real_key(data: dict, template: str) -> str:
     return ""
 
 
+#def key_correct(data: dict, old_key: str, new_key: str, path:dict)
+#    """
+#    change old_key to new_key
+#    :param data: dictionary
+#    :param old_key: key to change
+##    :param new_key: modern key
+#   :param path: keys to reach
+#    :return: 
+#    """
+#    for i in len(path):
+#        pass
+#    data[new_key] = data[oldkey]
+
 def check_existance(data: dict, param: str) -> (dict, str):
     """
     checks if key exists and its value is a dict

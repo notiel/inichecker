@@ -1,72 +1,46 @@
 import sys
+from typing import Tuple, Sequence, Any
+
 from IniToJson import get_json
 from CommonChecks import *
 
 leds_number = 8
 leds_copy_list = ['copyred', 'copyblue', 'copygreen']
 step_keys = ['repeat', 'wait', 'brightness', 'smooth', 'name']
+ledgroup_keys = ['name', 'leds']
 big_number = 36000000
+seq_keys = ['name', 'group', 'sequence']
 
 
-def check_sequencer(data, effect) -> str:
+def check_sequencer(data: dict,group_names: Sequence[str]) -> Tuple[str, str]:
     """
-    gets data dict and checks if any sequencers for effect and number of sequencers < leds_number
+    check if sequencer is correct
     :param data: dict with ini data
-    :param effect: effect
-    :return: error text or empty string
+    :param group_names: list with existing group names
+    :return: error and warning text or empty strings
     """
-    if not data[effect] or not isinstance(data[effect], list):
-        return "Error: '%s' effect has no sequencers;" % effect
-    if len(data[effect]) >= leds_number:
-        return "Error:'%s' effect: number of sequencers must be no more then %i;" \
-               % (effect, leds_number)
-    return ""
+    warning = check_keys(data, seq_keys)
+    name = get_real_key(data, 'name')
+    if not name:
+        return "No name field;", warning
+    if not(isinstance(data[name], str)):
+        return 'Sequencer name must to be string;', warning
+    group = get_real_key(data, 'group')
+    if not group:
+        return "No group name;", warning
+    if data[group].lower() not in [name.lower() for name in group_names]:
+        return "Use existing group name;", warning
+    sequence = get_real_key(data, 'sequence')
+    if not sequence:
+        return "No sequencer part", warning
+    if not isinstance(data[sequence], list):
+        return "Wrong sequence format;", warning
+    return "", warning
 
 
-def check_config(sequencer: dict, leds_used: list) -> (str, int, list):
-    """
-    checks if sequencer config exists, is not empty, is correct
-    (leds are not conflicting with used leds, leds are selected properly)
-    :param sequencer: dictionary with sequencer data
-    :param leds_used: list of used leds
-    :return: error text or empty string
-    """
-    error = ""
-    config = get_real_key(sequencer, "config")
-    if not config:
-        return "no Config string with leds list;", 0, leds_used
-    if not isinstance(sequencer[config], list):
-        return "config parameter must be list of LEDS (for example [Led1, Led2]);", 0
-    leds_count = len(sequencer[config])
-    if leds_count == 0:
-        return "0 LEDs selected", 0, leds_used
-    incorrect_leds = [led for led in sequencer[config] if
-                      led.lower() not in ['led1', 'led2', 'led3', 'led4', 'led5', 'led6', 'led7', 'led8']]
-    if incorrect_leds:
-        error += "incorrect led value;\n"
-    for led in sequencer[config]:
-        if led in leds_used:
-            error += "%s: this led is already used in other sequencer for this effect;\n" % led
-        else:
-            leds_used.append(led)
-    return error.strip(), leds_count, leds_used
 
 
-def check_sequence(sequencer: dict) -> str:
-    """
-    checks is sequence exists, if sequences are an array and this array is not empty
-    :param sequencer: sequencer dict
-    :return: error empty string
-    """
-    sequence = get_real_key(sequencer, "sequence")
-    if not sequence or not isinstance(sequencer[sequence], list):
-        return "no steps"
-    if len(sequencer[sequence]) == 0:
-        return "no steps"
-    return ""
-
-
-def get_namelist(sequencer: dict) -> (list, str):
+def get_namelist(sequence: Sequence[str]) -> (list, str):
     """
     gets list of steps names for sequence
     :param sequencer: dict with sequence data
@@ -74,8 +48,7 @@ def get_namelist(sequencer: dict) -> (list, str):
     """
     namelist = []
     error = ""
-    sequence = get_real_key(sequencer, "sequence")
-    for step in sequencer[sequence]:
+    for step in sequence:
         name = get_real_key(step, "name")
         if name:
             if step[name] in namelist:
@@ -182,6 +155,93 @@ def check_smooth(step: dict) -> str:
     return ""
 
 
+def check_main_section(data: dict) -> Tuple[str, str]:
+    """
+    checks that there are two main sections
+    :param data: dict with data
+    :return: error/warning message or ""
+    """
+    if not isinstance(data, dict):
+        return "wrong data format, must be LedGroups and Sequencer parts", ""
+    if len(data.keys()) < 2:
+        return "LedGroups or Sequencers part is absent", ""
+    ledgroups = get_real_key(data, "ledgroups")
+    if not ledgroups:
+        return "Ledgroups parts is absent", ""
+    sequencers = get_real_key(data, "sequencers")
+    if not sequencers:
+        return "Sequencer parts is absent", ""
+    warning = ""
+    if len(data.keys()) > 2:
+        warning  = "extra unknown keys in main part"
+    return "", warning
+
+def check_ledsgroup(data: list) -> Tuple[str, str, Sequence[str]]:
+    """
+    checks if leds group data is correct
+    :param data: list of ledsgroup
+
+    :return: error and list of used names
+    """
+    if isinstance(data, dict):
+        data = [data]
+    else:
+        if not isinstance(data, list):
+            return "wrong leds group format;", "", []
+    group_names = []
+    used_leds = []
+    error = ""
+    warning = ""
+    for ledgroup in data:
+        i = data.index(ledgroup) + 1
+        if not isinstance(ledgroup, dict):
+            error+="wrong group format for % i group\n" % i
+            continue
+        warning += check_keys(ledgroup, ledgroup_keys)
+        name = get_real_key(ledgroup, 'name')
+        if not name:
+            error+="Name is absent for %i group;\n" %i
+            continue
+        if not isinstance(ledgroup[name], str):
+            warning += "Ledgroup name is recommended to be string in %i group;\n" % i
+        if ledgroup[name].lower() in [used_name.lower() for used_name in group_names]:
+            error+="Names must be unique, we already have %s name" % ledgroup[name]
+        leds = get_real_key(ledgroup, "leds")
+        if not leds:
+            error+="Leds are absent for %s group;\n" % ledgroup[name]
+            continue
+        if not isinstance(ledgroup[leds], list):
+            error+="Leds are to be list like [1, 2, 3] in %s group;\n" % ledgroup[name]
+            continue
+        temp = [led not in [1, 2, 3, 4, 5, 6, 7, 8] for led in ledgroup[leds]]
+        temp2 = [led  in used_leds for led in ledgroup[leds]]
+        if any(temp):
+            error += "wrong led data, led is a number 1..8 for %s group;\n" % ledgroup[name]
+            continue
+        if any(temp2):
+            error += "several leds are already used in % s group;\n" % ledgroup[name]
+        used_leds.extend(ledgroup[leds])
+        group_names.append(ledgroup[name])
+    return error.strip(), warning, group_names
+
+
+def get_leds_count(data: dict, group_name: str) -> int:
+    """
+    gets number of leds for group
+    :param data: dict with data
+    :param group_name: name of group
+    :return: number of leds
+    """
+    ledgroups = get_real_key(data, 'ledgroups')
+    for ledgroup in data[ledgroups]:
+        name = get_real_key(ledgroup, "name")
+        if ledgroup[name].lower() == group_name.lower():
+            leds = get_real_key(ledgroup, 'leds')
+            return len(ledgroup[leds])
+    return 0
+
+
+
 def aux_main(filename: str) -> list:
     """
     checks aux file and return list of auxleds effects or none
@@ -193,63 +253,76 @@ def aux_main(filename: str) -> list:
     except FileNotFoundError:
         print("File %s not found" % filename)
         return []
-    print("Checking AuxLeds.ini...")
+    print("Checking %s..." % filename)
     text = f.read()
     data, error = get_json(text)
     error = error.replace(" enclosed in double quotes", "")
     if not data:
         print(error)
-        print("Cannot check AuxLeds.ini properly and get effect list")
+        print("Cannot check %s properly and get data list" % filename)
         return []
-
-    for effect in data.keys():
-        error = check_sequencer(data, effect)
+    error, warning = check_main_section(data)
+    if error:
+        print(error)
+        print("Can not check %s properly" % filename)
+        return []
+    error, warning, group_names = check_ledsgroup(data[get_real_key(data, 'ledgroups')])
+    if error:
+        print(error)
+    if warning:
+        print(warning)
+    sequencers = data[get_real_key(data, 'sequencers')]
+    if isinstance(sequencers, dict):
+        sequencers = [sequencers]
+    else:
+        if not isinstance(sequencers, list):
+            print("Wrong sequencers format, can't get sequencers data")
+            return []
+    seq_names = []
+    for sequencer in sequencers:
+        i = sequencers.index(sequencer) + 1
+        error, warning = check_sequencer(sequencer, group_names)
         if error:
-            print("Error: '%s' effect: " % effect + error)
+            print("Error: %i  sequencer: %s" % (i, error))
             continue
-
-        leds_used = []
-        for sequencer in data[effect]:
-            i_seq = data[effect].index(sequencer) + 1
-            error, leds_count, leds_used = check_config(sequencer, leds_used)
+        if warning:
+            print("Warning: %i  sequencer: %s" % (i, warning))
+        seq_name = sequencer[get_real_key(sequencer, 'name')]
+        if seq_name.lower in [name.lower() for name in seq_names]:
+            print("Name %s for sequencer is already used") % seq_name
+            continue
+        seq_names.append(seq_name)
+        if error:
+            print("Error: %s in '%s' sequences " % (error, seq_name))
+            continue
+        leds_count = get_leds_count(data, sequencer[get_real_key(sequencer, "group")])
+        sequence = get_real_key(sequencer, "sequence")
+        namelist, error = get_namelist(sequencer[sequence])
+        if error:
+            print("Error:  %s sequencer: " % (seq_name) + error)
+        for step in sequencer[sequence]:
+            name = ""
+            name_key = get_real_key(step, "name")
+            if name_key:
+                name = step[name_key]
+            i_step = sequencer[sequence].index(step) + 1
+            error = check_step_keys(step)
             if error:
-                print("Error: '%s' effect, %i sequencer: " % (effect, i_seq) + error)
+                print("Error: %s sequencer, %i step(%s): " % (seq_name, i_step, name) + error)
                 continue
-            error = check_sequence(sequencer)
+            error = check_brightness(step, leds_count)
             if error:
-                print(("Error: '%s' effect, %i sequencer: " % (effect, i_seq) + error))
-                continue
-            namelist, error = get_namelist(sequencer)
+                print("Error: %s sequencer, %i step(%s): " % (seq_name, i_step, name) + error)
+            error = check_wait(step)
             if error:
-                print("Error: '%s' effect, %i sequencer: " % (effect, i_seq) + error)
-            sequence = get_real_key(sequencer, "sequence")
-
-            for step in sequencer[sequence]:
-                name = ""
-                name_key = get_real_key(step, "name")
-                if name_key:
-                    name = step[name_key]
-                i_step = sequencer[sequence].index(step) + 1
-                error = check_step_keys(step)
-                if error:
-                    print("Error: '%s' effect, %i sequencer, %i step(%s): " % (effect, i_seq, i_step, name) + error)
-                    continue
-                error = check_brightness(step, leds_count)
-                if error:
-                    print("Error: '%s' effect, %i sequencer, %i step(%s): " % (effect, i_seq, i_step, name) + error)
-
-                error = check_wait(step)
-                if error:
-                    print("Error: '%s' effect, %i sequencer, %i step(%s): " % (effect, i_seq, i_step, name) + error)
-
-                error = check_repeat(step, namelist)
-                if error:
-                    print("Error: '%s' effect, %i sequencer, %i step(%s): " % (effect, i_seq, i_step, name) + error)
-
-                error = check_smooth(step)
-                if error:
-                    print("Error: '%s' effect, %i sequencer, %i step(%s): " % (effect, i_seq, i_step, name) + error)
-    return data.keys()
+                print("Error: %s sequencer, %i step(%s): " % (seq_name, i_step, name) + error)
+            error = check_repeat(step, namelist)
+            if error:
+                print("Error: '%s' sequencer, %i step(%s): " % (seq_name, i_step, name) + error)
+            error = check_smooth(step)
+            if error:
+                print("Error: %s sequencer, %i step(%s): " % (seq_name, i_step, name) + error)
+    return seq_names
 
 
 if __name__ == '__main__':

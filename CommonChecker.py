@@ -16,6 +16,7 @@ clash_keys = ['higha', 'length', 'hitlevel', 'loww']
 stab_keys = ['enabled', 'higha', 'loww', 'hitlevel', 'length', 'percent']
 screw_keys = ['enabled', 'loww', 'highw']
 
+
 max_band = 8
 max_leds = 144
 max_total_leds = 2000

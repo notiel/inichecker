@@ -5,14 +5,14 @@ from CommonChecks import *
 
 effects_keys = ['PowerOn', 'AfterWake', 'PowerOff', 'Flaming', 'Blade2', 'Lockup', 'Stab', 'Clash', 'Blaster',
                 'Workingmode', 'Flickering']
-workingmode_keys = ['color', "flaming", "flickeringalways", "auxledseffect"]
-on_off_keys = ['blade', 'auxledseffect']
-flaming_keys = ['size', 'speed', 'delay_ms', "colors", "auxledseffect"]
-blade2_flaming_keys = ['size', 'speed', 'delay_ms', "colors", "auxledseffect", "alwayson"]
-flickering_keys = ['time', 'brightness', "auxledseffect"]
-blade2_flickering_keys = ['time', 'brightness', "auxledseffect", "alwayson"]
-move_keys = ['color', 'duration_ms', 'sizepix', 'auxledseffect']
-lockup_keys = ['flicker', 'flashes', 'auxledseffect']
+workingmode_keys = ['color', "flaming", "flickeringalways", "auxleds"]
+on_off_keys = ['blade', 'auxleds']
+flaming_keys = ['size', 'speed', 'delay_ms', "colors", "auxleds"]
+blade2_flaming_keys = ['size', 'speed', 'delay_ms', "colors", "auxleds", "alwayson"]
+flickering_keys = ['time', 'brightness', "auxleds"]
+blade2_flickering_keys = ['time', 'brightness', "auxleds", "alwayson"]
+move_keys = ['color', 'duration_ms', 'sizepix', 'auxleds']
+lockup_keys = ['flicker', 'flashes', 'auxleds']
 lockup_flicker_keys = ['color', 'time', 'brightness']
 lockup_flashes_keys = ['period', 'color', 'duration_ms', 'sizepix']
 blade2_keys = ['flaming', 'workingmode', 'flickering', 'delaybeforeon']
@@ -26,13 +26,17 @@ def check_auxleds(data: dict, auxlist: list) -> str:
     :param auxlist: list with existing auxleds effects
     :return: error message or  empty string
     """
-    auxledseffect = get_real_key(data, "auxledseffect")
-    if auxledseffect:
-        if not isinstance(data[auxledseffect], str):
-            return "auxleds effect must be string;\n"
-        auxledseffect = data[auxledseffect]
-        if auxledseffect not in auxlist:
-            return "effect %s is absent in auxleds effect list;\n" % auxledseffect
+    auxlist = [aux.lower() for aux in auxlist]
+    auxleds = get_real_key(data, "auxleds")
+    if auxleds:
+        if not isinstance(data[auxleds], list):
+            return "auxleds effect must be formatted as [Effect1, Effect2];\n"
+        auxleds = data[auxleds]
+        warning = ""
+        for auxledseffect in auxleds:
+            if auxledseffect.lower() not in auxlist:
+                warning += "effect %s is absent in auxleds effect list;\n" % auxledseffect
+        return warning
     return ""
 
 
@@ -47,7 +51,7 @@ def check_afterwake(data: dict, auxlist: list) -> (str, str):
     if error:
         return error, ""
     warning = check_auxleds(afterwake, auxlist)
-    error += check_keys(afterwake, ['auxledseffect'])
+    error += check_keys(afterwake, ['auxleds'])
     return error, warning
 
 
